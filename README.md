@@ -1,0 +1,122 @@
+# pi-focus-mode
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+A [Pi](https://pi.dev/) extension for a compact activity view with tool timers and skills. Press Ctrl+I to replace thinking and tool blocks with a compact panel. Press it again to restore the normal display.
+
+## Installation
+
+### Global installation
+
+```sh
+pi install git:github.com/datfinesoul/pi-focus-mode
+```
+
+Pi records the package in `~/.pi/agent/settings.json`.
+
+### Project installation
+
+```sh
+pi install --local git:github.com/datfinesoul/pi-focus-mode
+```
+
+Pi records the package in `.pi/settings.json`. Project packages load only after project trust. Run `/reload` or start a new session after installation.
+
+> [!NOTE]
+> Pi identifies a package by where it was installed from. Installing pi-focus-mode globally and for a project from the same source is fine: the project installation replaces the global one. Installing it from different locations, such as GitHub globally and a local checkout for a project, loads both copies, and Pi does not reconcile them.
+
+<details>
+<summary>Install from a local checkout</summary>
+
+Install globally from your checkout:
+
+```sh
+pi install /path/to/pi-focus-mode
+```
+
+Install for one project:
+
+```sh
+pi install --local /path/to/pi-focus-mode
+```
+
+Try the checkout without changing settings:
+
+```sh
+cd /path/to/pi-focus-mode
+pi --no-extensions --extension ./extensions/focus-mode/index.ts
+```
+
+> If you used the temporary prototype, remove `-e /tmp/pi-compact-activity.ts` from your start command. Do not load both copies.
+
+</details>
+
+## Usage
+
+Focus mode starts disabled. Press Ctrl+I to toggle it, including while tools run. The extension adds no slash command.
+
+```text
+Activity  [compact · Ctrl+I] ─────── Skills ─────────────
+  ✓ thinking                         acp-ste100
+  ◉ read  1.2s
+  ✓ write
+```
+
+- Each activity name appears once, in first-seen order.
+- An active item displays an elapsed timer. Concurrent calls with the same name share a row, using the earliest active call's timer.
+- The final state appears after all calls with that name finish. A failed call displays a cross when it represents that row.
+- Skills lists unique skill directory names after successful `read` calls for `SKILL.md`. This indicates loading, not proof of later use.
+- A new user message clears both lists when Pi starts that message. Tree navigation, compaction, and reload also clear the lists.
+- Assistant text stays visible. Focus mode hides thinking, tool blocks, tool images, and the working indicator. Normal mode restores the standard display.
+- The header rule follows the terminal width. Skills shares the header when space permits. Narrow terminals place skills below activity.
+- Long lists display their latest rows and an omitted-item count. Earlier items remain in memory until the lists reset.
+
+The extension tracks activity from the time it loads. It does not reconstruct earlier activity from session history.
+
+## Keyboard shortcut
+
+| Shortcut | Action |
+| --- | --- |
+| Ctrl+I | Toggle normal and focus mode |
+
+Some terminals send the same bytes for Ctrl+I and Tab. In those terminals, this shortcut can also capture Tab. A terminal with distinct key reporting is required to preserve Tab behavior. The extension provides no alternate shortcut or slash command.
+
+## How it works
+
+The extension observes message and tool lifecycle events. It retains activity names, call IDs, timestamps, states, and skill directory names for the current user message. It does not retain tool arguments, tool results, or thinking text in its activity state. Tool events can include nested calls.
+
+Thinking appears only when the provider emits reasoning events. Its timer excludes initial response latency and does not measure hidden provider reasoning. Tool timers start at Pi's execution-start event, which can include preflight and approval waits.
+
+Pi currently has no public API to hide all transcript blocks. This version uses an internal rendering adapter tested with Pi 1.5.2. It suppresses tool rendering and removes thinking from a temporary display copy. It restores the original component content after each render. It never changes session messages, model context, tool implementations, or execution.
+
+The adapter checks the rendering interfaces it accesses. A detected incompatibility disables focus mode and reports a warning. These checks do not guarantee compatibility with future Pi versions. Other extensions that replace the transcript renderer can conflict with this adapter. RPC, JSON, and print modes do not install the adapter.
+
+This extension changes appearance only. It is not a security boundary. Normal mode, session files, and model context still contain the original content. The extension has no configuration files and does not change Pi settings.
+
+## Development
+
+Use Node.js 22.19 or newer. The extension has no runtime dependencies beyond the Pi host. It requires no build step or dependency installation for unit tests.
+
+```sh
+npm test
+npm run pack:check
+# Or: pnpm test && pnpm run pack:check
+```
+
+Set `PI_CODING_AGENT_ENTRY` to your installed Pi `dist/index.js` to include tests against its real rendering components:
+
+```sh
+PI_CODING_AGENT_ENTRY=/path/to/pi-coding-agent/dist/index.js npm test
+```
+
+Without that variable, the installed-Pi test reports a skip. The other tests use pure runtime logic and mock components.
+
+Before release, test the extension in Pi. Check normal and fullscreen modes, Ctrl+I during execution, parallel tools, cancellation, reload, themes, and terminal resizing. Check that normal mode restores tool output and thinking. Automated component tests do not replace these interactive checks.
+
+Each feature branch that triggers CI gets one version update relative to its base. Keep that version unchanged throughout the branch. Record subsequent user-visible changes under the same matching `## [<version>] - <date>` changelog heading. Do not increment the patch version for each edit, fix, or conversation turn. CI requires the branch version to exceed its base version. Pull requests that change only Markdown skipped by CI are exempt. After merge and successful CI, the Release workflow tags the tested commit `v<version>`. Merges that do not change the version are not tagged.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution steps.
+
+## License
+
+[MIT](LICENSE) © Philip Hadviger.
