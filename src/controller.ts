@@ -68,9 +68,19 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools) {
       };
     });
   });
+  pi.on("turn_start", () => {
+    activity.startWorking();
+    update();
+  });
+  pi.on("turn_end", () => {
+    activity.finishWorking();
+    activity.finishThinking();
+    update();
+  });
   pi.on("message_start", (event) => {
     if (event.message.role !== "user") return;
     activity.reset();
+    activity.startWorking();
     update();
   });
   pi.on("message_update", (event) => {
@@ -80,7 +90,10 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools) {
     update();
   });
   pi.on("message_end", (event) => {
-    if (event.message.role === "assistant") activity.finishThinking();
+    if (event.message.role === "assistant") {
+      activity.finishWorking();
+      activity.finishThinking(event.message.stopReason === "aborted" ? "cancelled" : event.message.stopReason === "error" ? "error" : "done");
+    }
     update();
   });
   pi.on("tool_execution_start", (event) => {

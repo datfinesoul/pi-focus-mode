@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createActivity } from "../src/activity.ts";
+
+test("working and thinking pause, retain elapsed time, and resume", () => {
+  let time = 0;
+  const a = createActivity(() => time);
+  a.startWorking();
+  a.startThinking();
+  time = 100;
+  a.finishThinking();
+  a.finishWorking();
+  time = 500;
+  assert.equal(a.snapshot().working.elapsed, 100);
+  assert.equal(a.snapshot().rows[0].elapsed, 100);
+  assert.equal(a.hasActive(), false);
+  a.startWorking();
+  a.startThinking();
+  time = 550;
+  assert.equal(a.snapshot().working.elapsed, 150);
+  assert.equal(a.snapshot().rows[0].elapsed, 150);
+  a.settle(true);
+  time = 1000;
+  assert.equal(a.snapshot().working.elapsed, 150);
+  assert.equal(a.snapshot().rows[0].elapsed, 150);
+  assert.equal(a.hasActive(), false);
+  a.reset();
+  assert.deepEqual(a.snapshot(), { rows: [], skills: [] });
+});
+
+test("tool timers accumulate non-overlapping execution intervals only", () => {
+  let time = 0;
+  const a = createActivity(() => time);
+  a.startTool("a", "read");
+  time = 50;
+  a.startTool("b", "read");
+  time = 100;
+  a.endTool("a", false);
+  time = 150;
+  a.endTool("b", false);
+  time = 500;
+  assert.equal(a.snapshot().rows[0].elapsed, 150);
+  a.startTool("c", "read");
+  time = 550;
+  assert.equal(a.snapshot().rows[0].elapsed, 200);
+  a.endTool("c", true);
+  time = 1000;
+  a.endTool("c", false);
+  assert.equal(a.snapshot().rows[0].elapsed, 200);
+  assert.equal(a.snapshot().rows[0].state, "error");
+});

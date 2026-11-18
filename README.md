@@ -62,14 +62,15 @@ Activity  [compact · Ctrl+I] ─────── Skills ───────
   ✓ write
 ```
 
-- Each activity name appears once, in first-seen order.
-- An active item displays an elapsed timer. Concurrent calls with the same name share a row, using the earliest active call's timer.
+- Working and thinking always appear first. Before either activity starts, its row shows an inactive marker and `0.0s`. Tool names appear once, in first-seen order.
+- Each item retains its elapsed timer after completion. The timer resumes when the same activity starts again and excludes inactive gaps. Concurrent calls with the same name count overlapping time once.
 - The final state appears after all calls with that name finish. A failed call displays a cross when it represents that row.
 - Skills lists unique skill directory names after successful `read` calls for `SKILL.md`. This indicates loading, not proof of later use.
 - A new user message clears both lists when Pi starts that message. Tree navigation, compaction, and reload also clear the lists.
 - Assistant text stays visible. Focus mode hides thinking, tool blocks, tool images, and the working indicator. Normal mode restores the standard display.
 - The header rule follows the terminal width. Skills shares the header when space permits. Narrow terminals place skills below activity.
-- Long lists display their latest rows and an omitted-item count. Earlier items remain in memory until the lists reset.
+- Long lists keep the thinking row visible and display the latest tool rows with an omitted-item count. Earlier items remain in memory until the lists reset.
+- A separate working row covers each model response, including the wait before streaming starts. Its timer pauses when the response ends or tool execution starts. The row stays visible after completion and resets to `0.0s` with each new user message.
 
 The extension tracks activity from the time it loads. It does not reconstruct earlier activity from session history.
 
@@ -85,7 +86,7 @@ Some terminals send the same bytes for Ctrl+I and Tab. In those terminals, this 
 
 The extension observes message and tool lifecycle events. It retains activity names, call IDs, timestamps, states, and skill directory names for the current user message. It does not retain tool arguments, tool results, or thinking text in its activity state. Tool events can include nested calls.
 
-Thinking appears only when the provider emits reasoning events. Its timer excludes initial response latency and does not measure hidden provider reasoning. Tool timers start at Pi's execution-start event, which can include preflight and approval waits.
+The thinking row becomes active only when the provider emits reasoning events. Its timer excludes initial response latency and does not measure hidden provider reasoning. The separate working timer accumulates response waiting and streaming time across model turns. It does not measure reasoning. Tool timers start at Pi's execution-start event, which can include preflight and approval waits.
 
 Pi currently has no public API to hide all transcript blocks. This version uses an internal rendering adapter tested with Pi 1.5.2. It suppresses tool rendering and removes thinking from a temporary display copy. It restores the original component content after each render. It never changes session messages, model context, tool implementations, or execution.
 
