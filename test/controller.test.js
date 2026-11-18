@@ -44,11 +44,42 @@ test("starts normal, updates while hidden, toggles, resets, and shuts down", asy
   assert(h.widget().render(100).join("\n").includes("✓ thinking"));
   h.events.get("agent_settled")({ aborted: false });
   h.events.get("session_tree")();
-  assert(h.widget().render(100).join("\n").includes("No activity yet."));
+  assert(h.widget().render(100).join("\n").includes("– thinking  0.0s"));
+  assert(h.widget().render(100).join("\n").includes("– working  0.0s"));
   h.events.get("session_shutdown")();
   assert.equal(h.working(), true);
   assert.equal(h.widget(), undefined);
   assert.equal(h.root.doRender, frame);
+});
+
+test("tracks response waiting without reasoning, across tools and cancellation", async () => {
+  const h = harness();
+  h.events.get("session_start")({}, h.ctx);
+  await h.toggle();
+  const view = () => h.widget().render(100).join("\n");
+  h.events.get("turn_start")({});
+  h.events.get("message_start")({ message: { role: "user" } });
+  assert(view().includes("◉ working"));
+  assert(view().includes("– thinking  0.0s"));
+  h.events.get("message_update")({ assistantMessageEvent: { type: "text_start" } });
+  assert(view().includes("◉ working"));
+  h.events.get("message_end")({ message: { role: "assistant" } });
+  assert(view().includes("✓ working"));
+  h.events.get("turn_start")({});
+  h.events.get("message_update")({ assistantMessageEvent: { type: "thinking_start" } });
+  h.events.get("tool_execution_start")({ toolCallId: "a", toolName: "read" });
+  assert(view().includes("✓ working"));
+  assert(view().includes("✓ thinking"));
+  h.events.get("tool_execution_end")({ toolCallId: "a", isError: false });
+  h.events.get("turn_start")({});
+  assert(view().includes("◉ working"));
+  h.events.get("agent_settled")({ aborted: true });
+  assert(!view().includes("◉"));
+  assert(view().includes("✓ thinking"));
+  h.events.get("turn_start")({});
+  h.events.get("turn_end")({});
+  assert(view().includes("✓ working"));
+  h.events.get("session_shutdown")();
 });
 
 test("never changes rendering in RPC and print modes", async () => {
