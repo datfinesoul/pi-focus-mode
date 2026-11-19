@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createActivity } from "./activity.ts";
+import type { createPreferences } from "./config.ts";
 import { renderActivity } from "./display.ts";
 import { installRendering } from "./rendering.ts";
 import type { RenderRoot } from "./rendering.ts";
@@ -7,7 +8,7 @@ import type { RenderRoot } from "./rendering.ts";
 type TextTools = { truncate(text: string, width: number): string; measure(text: string): number };
 const WIDGET = "focus-mode";
 
-export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools) {
+export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, preferences: ReturnType<typeof createPreferences>) {
   const activity = createActivity();
   let compact = false;
   let available = false;
@@ -27,6 +28,12 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools) {
     }
     root?.requestRender();
   }
+  function setCompact(enabled: boolean, ctx: ExtensionContext) {
+    compact = enabled;
+    ctx.ui.setWorkingVisible(!compact);
+    root?.invalidate();
+    update();
+  }
   function unsupported(reason: string) {
     available = false;
     const wasCompact = compact;
@@ -44,15 +51,20 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools) {
         ctx.ui.notify("Focus mode is unavailable with this Pi rendering interface.", "warning");
         return;
       }
-      compact = !compact;
-      ctx.ui.setWorkingVisible(!compact);
-      root?.invalidate();
-      update();
+      setCompact(!compact, ctx);
+      if (ctx.isProjectTrusted()) {
+        try {
+          preferences.save(ctx.cwd, compact);
+        } catch (error) {
+          ctx.ui.notify(`Focus mode preference was not saved: ${String(error)}`, "warning");
+        }
+      }
     },
   });
   pi.on("session_start", (_event, ctx) => {
     if (ctx.mode !== "tui") return;
     context = ctx;
+    const enabled = preferences.load(ctx.isProjectTrusted() ? ctx.cwd : undefined, (message) => ctx.ui.notify(message, "warning"));
     ctx.ui.setWidget(WIDGET, (tui, theme) => {
       root = tui as unknown as RenderRoot;
       adapter = installRendering(root, () => compact, unsupported);
@@ -67,6 +79,7 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools) {
         invalidate() {},
       };
     });
+    if (available && enabled) setCompact(true, ctx);
   });
   pi.on("turn_start", () => {
     activity.startWorking();

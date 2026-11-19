@@ -22,6 +22,8 @@ pi install --local git:github.com/datfinesoul/pi-focus-mode
 
 Pi records the package in `.pi/settings.json`. Project packages load only after project trust. Run `/reload` or start a new session after installation.
 
+Installation scope does not change which [configuration files](#configuration) the extension reads.
+
 > [!NOTE]
 > Pi identifies a package by where it was installed from. Installing pi-focus-mode globally and for a project from the same source is fine: the project installation replaces the global one. Installing it from different locations, such as GitHub globally and a local checkout for a project, loads both copies, and Pi does not reconcile them.
 
@@ -53,7 +55,7 @@ pi --no-extensions --extension ./extensions/focus-mode/index.ts
 
 ## Usage
 
-Focus mode starts disabled. Press Ctrl+I to toggle it, including while tools run. The extension adds no slash command.
+Focus mode starts disabled unless your configuration enables it. Press Ctrl+I to toggle it, including while tools run. In a trusted project, Ctrl+I also saves the new mode for that project. The extension adds no slash command.
 
 ```text
 Activity  [compact · Ctrl+I] ─────── Skills ─────────────
@@ -74,6 +76,38 @@ Activity  [compact · Ctrl+I] ─────── Skills ───────
 
 The extension tracks activity from the time it loads. It does not reconstruct earlier activity from session history.
 
+## Configuration
+
+| Layer | Location | Purpose |
+| --- | --- | --- |
+| Bundled | `extensions/focus-mode/config.json` | Default: `false` |
+| Global | `~/.pi/agent/focus-mode.json` | Personal default. Uses `PI_CODING_AGENT_DIR` if set. |
+| Project | `<project>/.pi/focus-mode.json` | Override for the current trusted project |
+
+A project value overrides the global value. A global value overrides the bundled default. If a configuration file is invalid, the extension warns and starts in normal mode.
+
+### Start in focus mode
+
+Add this setting to the global or trusted-project file. Run `/reload` to apply the change.
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Save or remove a project override
+
+Press Ctrl+I in a trusted project to save the new mode to `.pi/focus-mode.json`. The extension preserves other fields and never writes the global file. If the save fails, the display still changes and Pi shows a warning. In an untrusted project, Ctrl+I changes only the current display.
+
+Remove `enabled` from the project file to use the global or bundled value again. Run `/reload` to apply the change. To keep the preference private, exclude `.pi/focus-mode.json` from Git.
+
+### Field reference
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `enabled` | Boolean | `true` starts in focus mode. `false` starts in normal mode. |
+
 ## Keyboard shortcut
 
 | Shortcut | Action |
@@ -92,7 +126,7 @@ Pi currently has no public API to hide all transcript blocks. This version uses 
 
 The adapter checks the rendering interfaces it accesses. A detected incompatibility disables focus mode and reports a warning. These checks do not guarantee compatibility with future Pi versions. Other extensions that replace the transcript renderer can conflict with this adapter. RPC, JSON, and print modes do not install the adapter.
 
-This extension changes appearance only. It is not a security boundary. Normal mode, session files, and model context still contain the original content. The extension has no configuration files and does not change Pi settings.
+This extension changes appearance only. It is not a security boundary. Normal mode, session files, and model context still contain the original content. The extension does not change Pi settings.
 
 ## Development
 

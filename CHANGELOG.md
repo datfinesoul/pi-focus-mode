@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-19
+
+### Added
+
+- Configure the startup mode globally or per trusted project. Ctrl+I saves the mode for the current trusted project only.
+
 ## [0.1.1] - 2026-11-18
 
 ### Fixed
