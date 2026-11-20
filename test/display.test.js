@@ -23,6 +23,18 @@ test("resizes the header and moves Skills inline only when it fits", () => {
   assert.deepEqual(renderActivity(snapshot, 0, 40, 1500, plain), []);
 });
 
+test("collapses to the header line only", () => {
+  for (const width of [1, 12, 28, 40, 59, 60, 61, 80, 100, 160]) {
+    const lines = renderActivity(snapshot, width, 40, 1500, plain, { collapsed: true });
+    assert.equal(lines.length, 1);
+    assert.equal(plain.measure(lines[0]), width);
+    if (width >= 8) assert(lines[0].includes("Activity"));
+    assert(!lines[0].includes("Skills"));
+    assert(!lines[0].includes("write"));
+  }
+  assert.deepEqual(renderActivity(snapshot, 0, 40, 1500, plain, { collapsed: true }), []);
+});
+
 test("retains completed timers and uses accent for the rule", () => {
   const styles = [];
   const lines = renderActivity(snapshot, 100, 40, 1500, {
@@ -49,11 +61,11 @@ test("keeps thinking and response waiting visible in crowded panels", () => {
   }
 });
 
-test("has short empty labels and bounds long lists", () => {
-  const empty = renderActivity({ rows: [], skills: [] }, 100, 40, 0, plain).join("\n");
-  assert(empty.includes("– working  0.0s"));
-  assert(empty.includes("– thinking  0.0s"));
-  assert(empty.includes("None yet"));
+test("shows only the header without activity and bounds long lists", () => {
+  const empty = renderActivity({ rows: [], skills: [] }, 100, 40, 0, plain);
+  assert.equal(empty.length, 1);
+  assert(empty[0].includes("Activity"));
+  assert.equal(plain.measure(empty[0]), 100);
   const rows = Array.from({ length: 20 }, (_, i) => ({ id: String(i), name: `tool-${i}`, started: 0, state: "done" }));
   const skills = Array.from({ length: 20 }, (_, i) => `skill-${i}`);
   const lines = renderActivity({ rows, skills }, 100, 12, 0, plain);

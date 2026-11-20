@@ -99,6 +99,7 @@ export function createActivity(now: () => number = () => performance.now()) {
         rows: [...names.values()].map((group) => ({
           ...(group.find((row) => row.state === "active") ?? group[group.length - 1]),
           elapsed: elapsed(group),
+          calls: group.length,
         })),
         skills: [...skills],
         ...(working ? { working: { ...working, elapsed: (working.elapsed ?? 0) + (working.state === "active" ? Math.max(0, now() - working.started) : 0) } } : {}),

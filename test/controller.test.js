@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { registerFocusMode } from "../src/controller.ts";
 
-function harness(mode = "tui", { trusted = true, enabled = false, tools = ["ask_user_question"], failSave = false } = {}) {
-  const loads = [], saves = [];
+function harness(mode = "tui", { trusted = true, enabled = false, tools = ["ask_user_question"], failSave = false, failLog = false } = {}) {
+  const loads = [], saves = [], log = [];
   const events = new Map();
   let shortcut, widget, working = true;
   const warnings = [];
@@ -11,7 +11,7 @@ function harness(mode = "tui", { trusted = true, enabled = false, tools = ["ask_
     children: [], terminal: { rows: 40 },
     render() { return []; }, doRender() {}, invalidate() {}, requestRender() {},
   };
-  const ctx = { mode, cwd: "/project", isProjectTrusted: () => trusted, ui: {
+  const ctx = { mode, cwd: "/project", isProjectTrusted: () => trusted, sessionManager: { getSessionId: () => "session-1" }, ui: {
     setWidget(_key, factory) { widget = factory?.(root, { fg: (_color, text) => text }); },
     setWorkingVisible(value) { working = value; },
     notify(message) { warnings.push(message); },
@@ -29,8 +29,11 @@ function harness(mode = "tui", { trusted = true, enabled = false, tools = ["ask_
       saves.push([cwd, value]);
       if (failSave) throw new Error("read-only");
     },
+  }, (record) => {
+    if (failLog) throw new Error("read-only");
+    log.push(record);
   });
-  return { events, ctx, root, warnings, loads, saves, toggle: () => shortcut(ctx), widget: () => widget, working: () => working };
+  return { events, ctx, root, warnings, loads, saves, log, toggle: () => shortcut(ctx), widget: () => widget, working: () => working };
 }
 
 test("starts normal, updates while hidden, toggles, resets, and shuts down", async () => {
@@ -49,10 +52,10 @@ test("starts normal, updates while hidden, toggles, resets, and shuts down", asy
   assert(h.widget().render(100).join("\n").includes("◉ thinking"));
   h.events.get("message_end")({ message: { role: "assistant" } });
   assert(h.widget().render(100).join("\n").includes("✓ thinking"));
-  h.events.get("agent_settled")({ aborted: false });
+  h.events.get("agent_settled")({ aborted: false }, h.ctx);
   h.events.get("session_tree")();
-  assert(h.widget().render(100).join("\n").includes("– thinking  0.0s"));
-  assert(h.widget().render(100).join("\n").includes("– working  0.0s"));
+  // A reset leaves no activity, so only the header remains.
+  assert.equal(h.widget().render(100).length, 1);
   h.events.get("session_shutdown")();
   assert.equal(h.working(), true);
   assert.equal(h.widget(), undefined);
@@ -80,10 +83,12 @@ test("tracks response waiting without reasoning, across tools and cancellation",
   h.events.get("tool_execution_end")({ toolCallId: "a", isError: false });
   h.events.get("turn_start")({});
   assert(view().includes("◉ working"));
-  h.events.get("agent_settled")({ aborted: true });
+  h.events.get("agent_settled")({ aborted: true }, h.ctx);
+  // The panel collapses to its header until the next turn starts.
+  assert.equal(h.widget().render(100).length, 1);
   assert(!view().includes("◉"));
-  assert(view().includes("✓ thinking"));
   h.events.get("turn_start")({});
+  assert(view().includes("✓ thinking"));
   h.events.get("turn_end")({});
   assert(view().includes("✓ working"));
   h.events.get("session_shutdown")();
@@ -120,6 +125,8 @@ test("applies the startup preference and saves explicit toggles only", async () 
   h.events.get("session_start")({ reason: "reload" }, h.ctx);
   assert.deepEqual(h.loads, ["/project"]);
   assert.equal(h.working(), false);
+  assert.equal(h.widget().render(100).length, 1);
+  h.events.get("turn_start")({});
   assert(h.widget().render(100).join("\n").includes("thinking"));
   assert.deepEqual(h.saves, []);
   await h.toggle();
@@ -167,5 +174,84 @@ test("shows configured tools in compact mode and hides others", async () => {
   assert.deepEqual(question.render(80), ["original tool display"]);
   assert.deepEqual(tool.render(80), []);
   assert.deepEqual(anonymous.render(80), []);
+  h.events.get("session_shutdown")();
+});
+
+test("collapses at settle and writes one log record per turn", async () => {
+  const h = harness("tui", { enabled: true });
+  h.events.get("session_start")({}, h.ctx);
+  const view = () => h.widget().render(100);
+  h.events.get("turn_start")({});
+  h.events.get("message_start")({ message: { role: "user" } });
+  h.events.get("tool_execution_start")({ toolCallId: "a", toolName: "read", args: { path: "/skills/example/SKILL.md" } });
+  h.events.get("tool_execution_end")({ toolCallId: "a", isError: false });
+  h.events.get("message_end")({ message: { role: "assistant" } });
+  h.events.get("agent_settled")({ aborted: false }, h.ctx);
+  assert.equal(view().length, 1);
+  assert(view()[0].includes("Activity"));
+  assert.equal(h.log.length, 1);
+  const record = h.log[0];
+  assert.equal(record.version, 1);
+  assert.equal(record.sessionId, "session-1");
+  assert.equal(record.aborted, false);
+  assert.equal(typeof record.durationMs, "number");
+  assert.equal(typeof record.workingMs, "number");
+  assert(record.activities.some((row) => row.name === "read" && row.calls === 1 && row.elapsedMs >= 0));
+  assert.deepEqual(record.skills, ["example"]);
+  // A repeated settle signal must not write the same turn twice.
+  h.events.get("agent_settled")({ aborted: false }, h.ctx);
+  assert.equal(h.log.length, 1);
+  h.events.get("message_start")({ message: { role: "user" } });
+  assert(view().length > 1);
+  h.events.get("agent_settled")({ aborted: true }, h.ctx);
+  assert.equal(h.log.length, 2);
+  assert.equal(h.log[1].aborted, true);
+  assert.deepEqual(record.skills, ["example"]);
+  h.events.get("session_shutdown")();
+});
+
+test("writes no log when focus mode is off", () => {
+  const h = harness();
+  h.events.get("session_start")({}, h.ctx);
+  h.events.get("message_start")({ message: { role: "user" } });
+  h.events.get("agent_settled")({ aborted: false }, h.ctx);
+  assert.deepEqual(h.log, []);
+  assert.deepEqual(h.widget().render(100), []);
+  h.events.get("session_shutdown")();
+});
+
+test("keeps the collapse when the log fails and warns once", () => {
+  const h = harness("tui", { enabled: true, failLog: true });
+  h.events.get("session_start")({}, h.ctx);
+  h.events.get("message_start")({ message: { role: "user" } });
+  h.events.get("agent_settled")({ aborted: false }, h.ctx);
+  assert.equal(h.widget().render(100).length, 1);
+  h.events.get("message_start")({ message: { role: "user" } });
+  h.events.get("agent_settled")({ aborted: false }, h.ctx);
+  assert.equal(h.warnings.filter((message) => message.includes("turn log")).length, 1);
+  h.events.get("session_shutdown")();
+});
+
+test("shows the last stats again when focus mode is toggled", async () => {
+  const h = harness("tui", { enabled: true });
+  h.events.get("session_start")({}, h.ctx);
+  h.events.get("message_start")({ message: { role: "user" } });
+  h.events.get("agent_settled")({ aborted: false }, h.ctx);
+  assert.equal(h.widget().render(100).length, 1);
+  await h.toggle();
+  await h.toggle();
+  assert(h.widget().render(100).length > 1);
+  assert.equal(h.log.length, 1);
+  h.events.get("session_shutdown")();
+});
+
+test("shows only the header until activity begins", () => {
+  const h = harness("tui", { enabled: true });
+  h.events.get("session_start")({ reason: "reload" }, h.ctx);
+  assert.equal(h.widget().render(100).length, 1);
+  h.events.get("message_start")({ message: { role: "user" } });
+  assert(h.widget().render(100).length > 1);
+  h.events.get("agent_settled")({ aborted: false }, h.ctx);
+  assert.equal(h.widget().render(100).length, 1);
   h.events.get("session_shutdown")();
 });

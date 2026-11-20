@@ -4,14 +4,28 @@ import type { createPreferences } from "./config.ts";
 import { renderActivity } from "./display.ts";
 import { installRendering } from "./rendering.ts";
 import type { RenderRoot } from "./rendering.ts";
+import { appendTurnRecord } from "./turn-log.ts";
+import type { TurnRecord } from "./turn-log.ts";
 
 type TextTools = { truncate(text: string, width: number): string; measure(text: string): number };
+type LogWriter = (record: TurnRecord) => void;
 const WIDGET = "focus-mode";
 
-export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, preferences: ReturnType<typeof createPreferences>) {
+export function registerFocusMode(
+  pi: ExtensionAPI,
+  textTools: TextTools,
+  preferences: ReturnType<typeof createPreferences>,
+  writeLog: LogWriter = (record) => {
+    appendTurnRecord(record);
+  },
+) {
   const activity = createActivity();
   let compact = false;
   let available = false;
+  let collapsed = false;
+  let logged = false;
+  let logWarned = false;
+  let turnStartedAt: number | undefined;
   let context: ExtensionContext | undefined;
   let root: RenderRoot | undefined;
   let adapter: ReturnType<typeof installRendering> | undefined;
@@ -28,11 +42,45 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, prefer
     }
     root?.requestRender();
   }
+  function expand() {
+    collapsed = false;
+    logged = false;
+  }
+  function markTurnStart(force = false) {
+    if (force || turnStartedAt === undefined) turnStartedAt = Date.now();
+  }
   function setCompact(enabled: boolean, ctx: ExtensionContext) {
     compact = enabled;
     ctx.ui.setWorkingVisible(!compact);
     root?.invalidate();
     update();
+  }
+  function writeSettledTurn(ctx: ExtensionContext, aborted: boolean) {
+    logged = true;
+    if (turnStartedAt === undefined) return;
+    const snapshot = activity.snapshot();
+    const record: TurnRecord = {
+      version: 1,
+      sessionId: ctx.sessionManager.getSessionId(),
+      settledAt: new Date().toISOString(),
+      aborted,
+      durationMs: Math.round(Math.max(0, Date.now() - turnStartedAt)),
+      ...(snapshot.working ? { workingMs: Math.round(Math.max(0, snapshot.working.elapsed ?? 0)) } : {}),
+      activities: snapshot.rows.map((row) => ({
+        name: row.name,
+        state: row.state,
+        elapsedMs: Math.round(Math.max(0, row.elapsed ?? 0)),
+        calls: row.calls ?? 1,
+      })),
+      skills: [...snapshot.skills],
+    };
+    try {
+      writeLog(record);
+    } catch (error) {
+      if (logWarned) return;
+      logWarned = true;
+      ctx.ui.notify(`Focus mode turn log was not written: ${String(error)}`, "warning");
+    }
   }
   function unsupported(reason: string) {
     available = false;
@@ -51,6 +99,7 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, prefer
         ctx.ui.notify("Focus mode is unavailable with this Pi rendering interface.", "warning");
         return;
       }
+      expand();
       setCompact(!compact, ctx);
       if (ctx.isProjectTrusted()) {
         try {
@@ -74,14 +123,21 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, prefer
           return compact ? renderActivity(activity.snapshot(), width, root?.terminal?.rows ?? 24, performance.now(), {
             ...textTools,
             fg: (color, text) => theme.fg(color, text),
-          }) : [];
+          }, { collapsed }) : [];
         },
         invalidate() {},
       };
     });
     if (available && settings.enabled) setCompact(true, ctx);
   });
+  pi.on("agent_start", () => {
+    expand();
+    markTurnStart();
+    update();
+  });
   pi.on("turn_start", () => {
+    expand();
+    markTurnStart();
     activity.startWorking();
     update();
   });
@@ -93,6 +149,8 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, prefer
   pi.on("message_start", (event) => {
     if (event.message.role !== "user") return;
     activity.reset();
+    expand();
+    markTurnStart(true);
     activity.startWorking();
     update();
   });
@@ -117,13 +175,19 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, prefer
     activity.endTool(event.toolCallId, event.isError);
     update();
   });
-  pi.on("agent_settled", (event) => {
+  pi.on("agent_settled", (event, ctx) => {
     activity.settle(event.aborted);
+    if (compact) {
+      collapsed = true;
+      if (!logged) writeSettledTurn(ctx, event.aborted);
+    }
     update();
   });
   for (const event of ["session_tree", "session_compact"] as const) {
     pi.on(event, () => {
       activity.reset();
+      expand();
+      turnStartedAt = undefined;
       update();
     });
   }
@@ -131,6 +195,10 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, prefer
     const wasCompact = compact;
     compact = false;
     available = false;
+    collapsed = false;
+    logged = false;
+    logWarned = false;
+    turnStartedAt = undefined;
     if (timer) clearInterval(timer);
     timer = undefined;
     adapter?.dispose();
