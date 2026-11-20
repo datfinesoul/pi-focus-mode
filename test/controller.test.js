@@ -54,8 +54,8 @@ test("starts normal, updates while hidden, toggles, resets, and shuts down", asy
   assert(h.widget().render(100).join("\n").includes("✓ thinking"));
   h.events.get("agent_settled")({ aborted: false }, h.ctx);
   h.events.get("session_tree")();
-  assert(h.widget().render(100).join("\n").includes("– thinking  0.0s"));
-  assert(h.widget().render(100).join("\n").includes("– working  0.0s"));
+  // A reset leaves no activity, so only the header remains.
+  assert.equal(h.widget().render(100).length, 1);
   h.events.get("session_shutdown")();
   assert.equal(h.working(), true);
   assert.equal(h.widget(), undefined);
@@ -125,6 +125,8 @@ test("applies the startup preference and saves explicit toggles only", async () 
   h.events.get("session_start")({ reason: "reload" }, h.ctx);
   assert.deepEqual(h.loads, ["/project"]);
   assert.equal(h.working(), false);
+  assert.equal(h.widget().render(100).length, 1);
+  h.events.get("turn_start")({});
   assert(h.widget().render(100).join("\n").includes("thinking"));
   assert.deepEqual(h.saves, []);
   await h.toggle();
@@ -240,5 +242,16 @@ test("shows the last stats again when focus mode is toggled", async () => {
   await h.toggle();
   assert(h.widget().render(100).length > 1);
   assert.equal(h.log.length, 1);
+  h.events.get("session_shutdown")();
+});
+
+test("shows only the header until activity begins", () => {
+  const h = harness("tui", { enabled: true });
+  h.events.get("session_start")({ reason: "reload" }, h.ctx);
+  assert.equal(h.widget().render(100).length, 1);
+  h.events.get("message_start")({ message: { role: "user" } });
+  assert(h.widget().render(100).length > 1);
+  h.events.get("agent_settled")({ aborted: false }, h.ctx);
+  assert.equal(h.widget().render(100).length, 1);
   h.events.get("session_shutdown")();
 });

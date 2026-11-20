@@ -64,7 +64,7 @@ Activity  [compact · Ctrl+I] ─────── Skills ───────
   ✓ write
 ```
 
-- Working and thinking always appear first. Before either activity starts, its row shows an inactive marker and `0.0s`. Tool names appear once, in first-seen order.
+- The panel shows only its header until a turn starts. Working and thinking then appear first. Before an activity begins, its row shows an inactive marker and `0.0s`. Tool names appear once, in first-seen order.
 - Each item retains its elapsed timer after completion. The timer resumes when the same activity starts again and excludes inactive gaps. Concurrent calls with the same name count overlapping time once.
 - The final state appears after all calls with that name finish. A failed call displays a cross when it represents that row.
 - Skills lists unique skill directory names after successful `read` calls for `SKILL.md`. This indicates loading, not proof of later use.

@@ -61,11 +61,11 @@ test("keeps thinking and response waiting visible in crowded panels", () => {
   }
 });
 
-test("has short empty labels and bounds long lists", () => {
-  const empty = renderActivity({ rows: [], skills: [] }, 100, 40, 0, plain).join("\n");
-  assert(empty.includes("– working  0.0s"));
-  assert(empty.includes("– thinking  0.0s"));
-  assert(empty.includes("None yet"));
+test("shows only the header without activity and bounds long lists", () => {
+  const empty = renderActivity({ rows: [], skills: [] }, 100, 40, 0, plain);
+  assert.equal(empty.length, 1);
+  assert(empty[0].includes("Activity"));
+  assert.equal(plain.measure(empty[0]), 100);
   const rows = Array.from({ length: 20 }, (_, i) => ({ id: String(i), name: `tool-${i}`, started: 0, state: "done" }));
   const skills = Array.from({ length: 20 }, (_, i) => `skill-${i}`);
   const lines = renderActivity({ rows, skills }, 100, 12, 0, plain);

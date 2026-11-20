@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Collapse the panel to its header line when the agent settles. The next user message or a Ctrl+I toggle shows the last turn again.
+- Collapse the panel to its header line when the agent settles or when there is no activity to show. The next user message or a Ctrl+I toggle shows the last turn again.
 - Write one JSONL record for each settled turn to a session log under the XDG state directory.
 
 ## [0.3.0] - 2026-11-20
