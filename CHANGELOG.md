@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-20
+
+### Added
+
+- `alwaysVisibleTools` configuration keeps chosen tools visible in focus mode. The bundled default keeps `ask_user_question` visible.
+
+### Fixed
+
+- `ask_user_question` no longer disappears from the transcript in focus mode, so the question and the answer stay visible.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added

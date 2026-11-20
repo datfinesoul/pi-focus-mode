@@ -64,10 +64,10 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, prefer
   pi.on("session_start", (_event, ctx) => {
     if (ctx.mode !== "tui") return;
     context = ctx;
-    const enabled = preferences.load(ctx.isProjectTrusted() ? ctx.cwd : undefined, (message) => ctx.ui.notify(message, "warning"));
+    const settings = preferences.load(ctx.isProjectTrusted() ? ctx.cwd : undefined, (message) => ctx.ui.notify(message, "warning"));
     ctx.ui.setWidget(WIDGET, (tui, theme) => {
       root = tui as unknown as RenderRoot;
-      adapter = installRendering(root, () => compact, unsupported);
+      adapter = installRendering(root, () => compact, unsupported, () => settings.alwaysVisibleTools);
       available = adapter.supported;
       return {
         render(width) {
@@ -79,7 +79,7 @@ export function registerFocusMode(pi: ExtensionAPI, textTools: TextTools, prefer
         invalidate() {},
       };
     });
-    if (available && enabled) setCompact(true, ctx);
+    if (available && settings.enabled) setCompact(true, ctx);
   });
   pi.on("turn_start", () => {
     activity.startWorking();

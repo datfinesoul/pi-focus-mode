@@ -1,6 +1,6 @@
 {
   "name": "@datfinesoul/pi-focus-mode",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A Pi extension for a compact activity view with tool timers and skills.",
   "type": "module",
   "license": "MIT",
