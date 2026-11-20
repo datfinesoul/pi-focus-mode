@@ -3,6 +3,7 @@ import test from "node:test";
 import { installRendering } from "../src/rendering.ts";
 
 class ToolExecutionComponent {
+  constructor(toolName) { this.toolName = toolName; }
   render() { return ["original tool and image"]; }
 }
 class AssistantMessageComponent {
@@ -54,6 +55,27 @@ test("finds fullscreen child documents and restores detached components", () => 
   root.doRender();
   assert.deepEqual(tool.render(), ["original tool and image"]);
   adapter.dispose();
+});
+
+test("renders always-visible tools normally and follows late configuration", () => {
+  let compact = true;
+  const visible = ["ask_user_question"];
+  const question = new ToolExecutionComponent("ask_user_question");
+  const tool = new ToolExecutionComponent("read");
+  const anonymous = new ToolExecutionComponent();
+  const root = makeRoot([question, tool, anonymous]);
+  const adapter = installRendering(root, () => compact, assert.fail, () => visible);
+  root.doRender();
+  assert.deepEqual(question.render(80), ["original tool and image"]);
+  assert.deepEqual(tool.render(80), []);
+  assert.deepEqual(anonymous.render(80), []);
+  visible.push("read");
+  assert.deepEqual(tool.render(80), ["original tool and image"]);
+  visible.length = 0;
+  assert.deepEqual(question.render(80), []);
+  adapter.dispose();
+  compact = false;
+  assert.deepEqual(question.render(80), ["original tool and image"]);
 });
 
 test("returns normal display for incompatible interfaces", () => {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { registerFocusMode } from "../src/controller.ts";
 
-function harness(mode = "tui", { trusted = true, enabled = false, failSave = false } = {}) {
+function harness(mode = "tui", { trusted = true, enabled = false, tools = ["ask_user_question"], failSave = false } = {}) {
   const loads = [], saves = [];
   const events = new Map();
   let shortcut, widget, working = true;
@@ -24,7 +24,7 @@ function harness(mode = "tui", { trusted = true, enabled = false, failSave = fal
     measure: (text) => [...text].length,
     truncate: (text, width) => [...text].slice(0, width).join(""),
   }, {
-    load(cwd) { loads.push(cwd); return enabled; },
+    load(cwd) { loads.push(cwd); return { enabled, alwaysVisibleTools: tools }; },
     save(cwd, value) {
       saves.push([cwd, value]);
       if (failSave) throw new Error("read-only");
@@ -144,5 +144,28 @@ test("keeps the display toggle when saving fails", async () => {
   await h.toggle();
   assert.equal(h.working(), false);
   assert(h.warnings.some((message) => message.includes("was not saved")));
+  h.events.get("session_shutdown")();
+});
+
+class ToolExecutionComponent {
+  constructor(toolName) { this.toolName = toolName; }
+  render() { return ["original tool display"]; }
+}
+
+test("shows configured tools in compact mode and hides others", async () => {
+  const h = harness("tui", { tools: ["custom_tool"] });
+  const question = new ToolExecutionComponent("custom_tool");
+  const tool = new ToolExecutionComponent("read");
+  const anonymous = new ToolExecutionComponent();
+  h.root.children.push(question, tool, anonymous);
+  h.events.get("session_start")({}, h.ctx);
+  h.root.doRender();
+  assert.deepEqual(question.render(80), ["original tool display"]);
+  assert.deepEqual(tool.render(80), ["original tool display"]);
+  await h.toggle();
+  h.root.doRender();
+  assert.deepEqual(question.render(80), ["original tool display"]);
+  assert.deepEqual(tool.render(80), []);
+  assert.deepEqual(anonymous.render(80), []);
   h.events.get("session_shutdown")();
 });

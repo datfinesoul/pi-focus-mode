@@ -8,6 +8,7 @@ type Component = {
   lastMessage?: { content?: { type: string; [key: string]: unknown }[]; [key: string]: unknown };
   isStreaming?: boolean;
   updateContent?(message: unknown, streaming?: boolean): void;
+  toolName?: string;
 };
 export type RenderRoot = Component & {
   doRender(): void;
@@ -17,7 +18,12 @@ export type RenderRoot = Component & {
   terminal?: { rows: number };
 };
 
-export function installRendering(root: RenderRoot, isCompact: () => boolean, unsupported: (reason: string) => void) {
+export function installRendering(
+  root: RenderRoot,
+  isCompact: () => boolean,
+  unsupported: (reason: string) => void,
+  alwaysVisibleTools?: () => readonly string[],
+) {
   let disposed = false;
   let failed = false;
   const patched = new Map<Component, { render: Component["render"]; own: boolean }>();
@@ -49,7 +55,14 @@ export function installRendering(root: RenderRoot, isCompact: () => boolean, uns
       patched.set(node, { render: original, own: Object.hasOwn(node, "render") });
       node.render = function (width) {
         if (failed || disposed || !isCompact()) return original.call(this, width);
-        if (name === "ToolExecutionComponent") return [];
+        if (name === "ToolExecutionComponent") {
+          // Interactive prompts stay visible so the user keeps a transcript
+          // record of the question and the answer.
+          if (this.toolName !== undefined && alwaysVisibleTools?.().includes(this.toolName)) {
+            return original.call(this, width);
+          }
+          return [];
+        }
         const message = this.lastMessage;
         if (!message) return original.call(this, width);
         if (!Array.isArray(message.content)) {
