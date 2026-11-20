@@ -70,6 +70,7 @@ Activity  [compact · Ctrl+I] ─────── Skills ───────
 - Skills lists unique skill directory names after successful `read` calls for `SKILL.md`. This indicates loading, not proof of later use.
 - A new user message clears both lists when Pi starts that message. Tree navigation, compaction, and reload also clear the lists.
 - Assistant text stays visible. Focus mode hides thinking, tool blocks, tool images, and the working indicator. Tools in `alwaysVisibleTools` keep their normal transcript display. Normal mode restores the standard display.
+- When the agent settles, the panel collapses to its header line and writes one record for the turn to the [session log](#how-it-works). The next user message or a Ctrl+I toggle shows the last turn again.
 - The header rule follows the terminal width. Skills shares the header when space permits. Narrow terminals place skills below activity.
 - Long lists keep the thinking row visible and display the latest tool rows with an omitted-item count. Earlier items remain in memory until the lists reset.
 - A separate working row covers each model response, including the wait before streaming starts. Its timer pauses when the response ends or tool execution starts. The row stays visible after completion and resets to `0.0s` with each new user message.
@@ -136,6 +137,14 @@ The thinking row becomes active only when the provider emits reasoning events. I
 Pi currently has no public API to hide all transcript blocks. This version uses an internal rendering adapter tested with Pi 1.5.2. It suppresses tool rendering, except for tools in `alwaysVisibleTools`, and removes thinking from a temporary display copy. It restores the original component content after each render. It never changes session messages, model context, tool implementations, or execution.
 
 The adapter checks the rendering interfaces it accesses. A detected incompatibility disables focus mode and reports a warning. These checks do not guarantee compatibility with future Pi versions. Other extensions that replace the transcript renderer can conflict with this adapter. RPC, JSON, and print modes do not install the adapter.
+
+The extension collapses the panel at `agent_settled`, the final idle boundary after retries, compaction retries, and queued messages. A new user message, a turn start, tree navigation, or compaction expands the panel again. Ctrl+I also shows the last turn again until the next turn starts.
+
+Focus mode writes one JSONL record for each settled turn to `~/.local/state/pi-focus-mode/<session-id>.jsonl`. When `XDG_STATE_HOME` is set to an absolute path, the file is in `$XDG_STATE_HOME/pi-focus-mode/`. Each record holds the settle time, the turn duration, and the working time. It also holds each activity name with its state, total elapsed time, and call count, plus the loaded skills. The log does not hold tool arguments, tool results, thinking text, or assistant text. The extension writes a record only while focus mode is active. A write failure shows one warning and does not stop the collapse. Files are append-only, and Pi does not remove them when you delete a session.
+
+```json
+{"version":1,"sessionId":"…","settledAt":"2026-11-20T21:55:12.345Z","aborted":false,"durationMs":184200,"workingMs":61200,"activities":[{"name":"thinking","state":"done","elapsedMs":12400,"calls":3},{"name":"read","state":"done","elapsedMs":8300,"calls":5}],"skills":["acp-ste100"]}
+```
 
 This extension changes appearance only. It is not a security boundary. Normal mode, session files, and model context still contain the original content. The extension does not change Pi settings.
 

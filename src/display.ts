@@ -13,12 +13,14 @@ export function renderActivity(
   terminalRows: number,
   now: number,
   tools: DisplayTools,
+  options: { collapsed?: boolean } = {},
 ): string[] {
   if (width <= 0) return [];
   const { fg, truncate, measure } = tools;
   const label = fg("accent", "Activity") + fg("dim", "  [compact · Ctrl+I]");
   const remaining = Math.max(0, width - measure(label));
   let header = label + (remaining > 0 ? fg("accent", " " + "─".repeat(remaining - 1)) : "");
+  if (options.collapsed) return [truncate(header, width)];
   const pinned = snapshot.rows.filter((row) => row.id.startsWith("thinking-"));
   const inactive = (name: string): Activity => ({ id: `placeholder-${name}`, name, started: 0, state: "cancelled", elapsed: 0 });
   if (!pinned.length) pinned.push(inactive("thinking"));

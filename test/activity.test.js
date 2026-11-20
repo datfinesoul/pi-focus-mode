@@ -69,3 +69,18 @@ test("removes terminal control characters from skill names", () => {
   activity.endTool("a", false);
   assert.deepEqual(activity.snapshot().skills, ["name"]);
 });
+
+test("counts calls behind each displayed name for the turn log", () => {
+  const activity = createActivity(() => 10);
+  for (const id of ["a", "b", "c"]) {
+    activity.startTool(id, "read");
+    activity.endTool(id, false);
+  }
+  activity.startThinking();
+  activity.finishThinking();
+  activity.startThinking();
+  activity.finishThinking();
+  const rows = activity.snapshot().rows;
+  assert.equal(rows.find((row) => row.name === "read").calls, 3);
+  assert.equal(rows.find((row) => row.name === "thinking").calls, 2);
+});

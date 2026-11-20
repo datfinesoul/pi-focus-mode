@@ -23,6 +23,18 @@ test("resizes the header and moves Skills inline only when it fits", () => {
   assert.deepEqual(renderActivity(snapshot, 0, 40, 1500, plain), []);
 });
 
+test("collapses to the header line only", () => {
+  for (const width of [1, 12, 28, 40, 59, 60, 61, 80, 100, 160]) {
+    const lines = renderActivity(snapshot, width, 40, 1500, plain, { collapsed: true });
+    assert.equal(lines.length, 1);
+    assert.equal(plain.measure(lines[0]), width);
+    if (width >= 8) assert(lines[0].includes("Activity"));
+    assert(!lines[0].includes("Skills"));
+    assert(!lines[0].includes("write"));
+  }
+  assert.deepEqual(renderActivity(snapshot, 0, 40, 1500, plain, { collapsed: true }), []);
+});
+
 test("retains completed timers and uses accent for the rule", () => {
   const styles = [];
   const lines = renderActivity(snapshot, 100, 40, 1500, {
