@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-22
+
+### Added
+
+- Collapse the panel to its header line while an extension prompt waits for input, such as an `ask_user_question` dialog. The panel returns when the prompt closes. Ctrl+I does not expand the panel during the prompt.
+
+### Changed
+
+- Require Pi 1.6.0 or later. Pi 1.5.x does not emit the `ui_prompt_start` and `ui_prompt_end` events, so the panel cannot collapse during prompts on that version.
+
 ## [0.4.0] - 2026-11-20
 
 ### Added
