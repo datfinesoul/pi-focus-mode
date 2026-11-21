@@ -210,6 +210,39 @@ test("collapses at settle and writes one log record per turn", async () => {
   h.events.get("session_shutdown")();
 });
 
+test("collapses while an extension prompt waits for the user", async () => {
+  const h = harness("tui", { enabled: true });
+  h.events.get("session_start")({}, h.ctx);
+  h.events.get("message_start")({ message: { role: "user" } });
+  h.events.get("tool_execution_start")({ toolCallId: "q", toolName: "ask_user_question" });
+  const view = () => h.widget().render(100);
+  assert(view().length > 1);
+  h.events.get("ui_prompt_start")({ kind: "custom" });
+  assert.equal(view().length, 1);
+  assert(view()[0].includes("Activity"));
+  // Ctrl+I toggles focus mode but must not expand the panel during the prompt.
+  await h.toggle();
+  assert.deepEqual(view(), []);
+  await h.toggle();
+  assert.equal(view().length, 1);
+  h.events.get("ui_prompt_end")({ kind: "custom" });
+  assert(view().length > 1);
+  h.events.get("session_shutdown")();
+});
+
+test("clears an open prompt state at shutdown", () => {
+  const h = harness("tui", { enabled: true });
+  h.events.get("session_start")({}, h.ctx);
+  h.events.get("message_start")({ message: { role: "user" } });
+  h.events.get("ui_prompt_start")({ kind: "select" });
+  assert.equal(h.widget().render(100).length, 1);
+  h.events.get("session_shutdown")();
+  h.events.get("session_start")({}, h.ctx);
+  h.events.get("message_start")({ message: { role: "user" } });
+  assert(h.widget().render(100).length > 1);
+  h.events.get("session_shutdown")();
+});
+
 test("writes no log when focus mode is off", () => {
   const h = harness();
   h.events.get("session_start")({}, h.ctx);

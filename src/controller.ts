@@ -23,6 +23,7 @@ export function registerFocusMode(
   let compact = false;
   let available = false;
   let collapsed = false;
+  let prompting = false;
   let logged = false;
   let logWarned = false;
   let turnStartedAt: number | undefined;
@@ -123,7 +124,7 @@ export function registerFocusMode(
           return compact ? renderActivity(activity.snapshot(), width, root?.terminal?.rows ?? 24, performance.now(), {
             ...textTools,
             fg: (color, text) => theme.fg(color, text),
-          }, { collapsed }) : [];
+          }, { collapsed: collapsed || prompting }) : [];
         },
         invalidate() {},
       };
@@ -175,6 +176,14 @@ export function registerFocusMode(
     activity.endTool(event.toolCallId, event.isError);
     update();
   });
+  pi.on("ui_prompt_start", () => {
+    prompting = true;
+    update();
+  });
+  pi.on("ui_prompt_end", () => {
+    prompting = false;
+    update();
+  });
   pi.on("agent_settled", (event, ctx) => {
     activity.settle(event.aborted);
     if (compact) {
@@ -196,6 +205,7 @@ export function registerFocusMode(
     compact = false;
     available = false;
     collapsed = false;
+    prompting = false;
     logged = false;
     logWarned = false;
     turnStartedAt = undefined;

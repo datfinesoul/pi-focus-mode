@@ -19,6 +19,8 @@ test("installed Pi loader registers only Ctrl+I and lifecycle handlers", {
   assert.equal(extension.commands.size, 0);
   assert.equal(extension.tools.size, 0);
   assert(extension.handlers.has("session_shutdown"));
+  assert(extension.handlers.has("ui_prompt_start"));
+  assert(extension.handlers.has("ui_prompt_end"));
 });
 test("installed Pi components hide and restore without changing messages", {
   skip: entry ? false : "Set PI_CODING_AGENT_ENTRY to installed Pi dist/index.js",
